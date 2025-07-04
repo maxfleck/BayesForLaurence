@@ -12,10 +12,10 @@ def _():
     #import json
     import toml
     import glob
-    import os, sys
+    import os, sys, shutil
     #import edboplus.edbo
     from edboplus.edbo.plus.optimizer_botorch import EDBOplus
-    return EDBOplus, glob, mo, np, os, pd, toml
+    return EDBOplus, glob, mo, np, os, pd, shutil, toml
 
 
 @app.cell
@@ -582,27 +582,77 @@ def _(
     button_form,
     design_objective_df,
     np,
+    os,
+    pd,
     project_path,
     reaction_components,
+    shutil,
 ):
     if button_form.value["btn"]:
-        EDBOplus().generate_reaction_scope(
-            components=reaction_components,
-            directory=project_path.project_path,
-            filename=project_path.edbo_filename,
-            check_overwrite=False
-        )    
+        if os.path.exists(project_path.edbo_filepath):
+            print("ex")
+            # copy current scope to save results
+            dest = os.path.join(project_path.project_path,"my_optimization_backup.csv")
+            shutil.copyfile(project_path.edbo_filepath,dest)
+    
+            EDBOplus().generate_reaction_scope(
+                components=reaction_components,
+                directory=project_path.project_path,
+                filename=project_path.edbo_filename,
+                check_overwrite=False
+            )    
 
-        EDBOplus().run(
-            filename=project_path.edbo_filename,  # Previously generated scope.
-            directory=project_path.project_path,
-            objectives=list(np.atleast_1d(design_objective_df["name"])),  # Objectives to be optimized.
-            objective_mode=list(np.atleast_1d(design_objective_df["goal"])),  # Maximize yield and ee but minimize side_product.
-            batch=3,  # Number of experiments in parallel that we want to perform in this round.
-            columns_features='all', # features to be included in the model.
-            init_sampling_method='cvt'  # initialization method.
-        )
+            EDBOplus().run(
+                filename=project_path.edbo_filename,  # Previously generated scope.
+                directory=project_path.project_path,
+                objectives=list(np.atleast_1d(design_objective_df["name"])),  # Objectives to be optimized.
+                objective_mode=list(np.atleast_1d(design_objective_df["goal"])),  # Maximize yield and ee but minimize side_product.
+                batch=1,  # Number of experiments in parallel that we want to perform in this round.
+                columns_features='all', # features to be included in the model.
+                init_sampling_method='cvt'  # initialization method.
+            )        
 
+            print("ex")
+            # load backup scope
+            backup_scope = pd.read_csv(dest)
+            backup_scope = backup_scope[backup_scope["priority"]==-1]
+            # load new scope
+            new_scope = pd.read_csv(project_path.edbo_filepath)
+            new_scope["priority"] = 0
+        
+            # Concatenate scopes, ignore original indexes
+            combined = pd.concat([backup_scope,new_scope], ignore_index=True)
+        
+            # Drop duplicates based on reaction_components, keeping the row from backup_scope if present
+            result = combined.drop_duplicates(subset=reaction_components, keep='first').reset_index(drop=True)
+            result["priority"][result["priority"] != -1] = 0
+            result.to_csv(project_path.edbo_filepath, index=False)        
+
+        else:
+            print("new")
+            EDBOplus().generate_reaction_scope(
+                components=reaction_components,
+                directory=project_path.project_path,
+                filename=project_path.edbo_filename,
+                check_overwrite=False
+            )            
+    
+    #    EDBOplus().run(
+    #        filename=project_path.edbo_filename,  # Previously generated scope.
+    #        directory=project_path.project_path,
+    #        objectives=list(np.atleast_1d(design_objective_df["name"])),  # Objectives to be optimized.
+    #        objective_mode=list(np.atleast_1d(design_objective_df["goal"])),  # Maximize yield and ee but minimize side_product.
+    #        batch=3,  # Number of experiments in parallel that we want to perform in this round.
+    #        columns_features='all', # features to be included in the model.
+    #        init_sampling_method='cvt'  # initialization method.
+    #    )
+
+    return
+
+
+@app.cell
+def _(project_path):
+    project_path.edbo_filepath
     return
 
 

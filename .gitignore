@@ -3,3 +3,4 @@ edboplus/
 __pycache__/*
 __marimo__/*
 .venv/
+**/*#
