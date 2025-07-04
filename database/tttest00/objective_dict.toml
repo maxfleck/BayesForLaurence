@@ -1,0 +1,4 @@
+[yield]
+type = "design_objective"
+summary = "yield (design_objective)"
+goal = "max"

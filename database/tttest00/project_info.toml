@@ -1,0 +1,5 @@
+name = ""
+design_variable = "eqRNC,EqH2O,Sel,intensity,Concentration,faraday"
+design_objective = "yield"
+additional_variable = "priority"
+project_description = "this is a project"
