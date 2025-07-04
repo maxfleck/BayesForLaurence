@@ -15,7 +15,7 @@ def _():
     import os, sys
     #import edboplus.edbo
     from edboplus.edbo.plus.optimizer_botorch import EDBOplus
-    return EDBOplus, glob, mo, np, os, pd, sys, toml
+    return EDBOplus, glob, mo, np, os, pd, toml
 
 
 @app.cell
@@ -714,7 +714,7 @@ def _(mo):
 def _(df_predictions_editor, mo, project_path, show_edbo_status):
     if show_edbo_status:
         project_path.update_edbo_csv(df_predictions_editor.value)
-        df_edbo_show = project_path.edbo_df
+        df_edbo_show = project_path.edbo_df.reset_index()
     else:
         df_edbo_show = mo.md("")
     df_edbo_show
@@ -754,14 +754,6 @@ def _(
         with mo.redirect_stderr():
             print("nothing to save... (?")    
 
-    return
-
-
-@app.cell
-def _(mo, sys):
-    with mo.capture_stderr() as buffer:
-        sys.stderr.write("Hello!")
-    buffer.getvalue()
     return
 
 
