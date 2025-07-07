@@ -273,12 +273,6 @@ def _(pd, project_form):
 
 
 @app.cell
-def _(project_path, variable_df):
-    project_path.update_key = variable_df[variable_df["type"]=="design_objective"].iloc[0]["name"]
-    return
-
-
-@app.cell
 def _(mo):
     mo.md(
         r"""
@@ -434,7 +428,7 @@ def _(design_variable_button, design_variable_df, mo, project_path):
         design_dict = design_variable_df.set_index("name").to_dict(orient='index')
         project_path.save_toml("design_dict.toml",design_dict)
         with mo.redirect_stdout():
-            print("design variables saved :)")
+            print("Design Variables SAVED :)")     
     return
 
 
@@ -446,7 +440,7 @@ def _(mo):
 
     # Define Design Objectives
 
-    ...
+    define the optimization goal of your design objective.
     """
     )
     return
@@ -516,7 +510,7 @@ def _(design_objective_button, design_objective_df, mo, project_path):
         objective_dict = design_objective_df.set_index("name").to_dict(orient='index')
         project_path.save_toml("objective_dict.toml",objective_dict)
         with mo.redirect_stdout():
-            print("design objectives saved :)")
+            print("Design Objectives SAVED :)")
     else:
         # objective_dict = project_path.load_toml("objective_dict.toml")
         objective_dict = design_objective_df.set_index("name").to_dict(orient='index')
@@ -594,7 +588,7 @@ def _(
             # copy current scope to save results
             dest = os.path.join(project_path.project_path,"my_optimization_backup.csv")
             shutil.copyfile(project_path.edbo_filepath,dest)
-    
+
             EDBOplus().generate_reaction_scope(
                 components=reaction_components,
                 directory=project_path.project_path,
@@ -619,10 +613,10 @@ def _(
             # load new scope
             new_scope = pd.read_csv(project_path.edbo_filepath)
             new_scope["priority"] = 0
-        
+
             # Concatenate scopes, ignore original indexes
             combined = pd.concat([backup_scope,new_scope], ignore_index=True)
-        
+
             # Drop duplicates based on reaction_components, keeping the row from backup_scope if present
             result = combined.drop_duplicates(subset=reaction_components, keep='first').reset_index(drop=True)
             result["priority"][result["priority"] != -1] = 0
@@ -636,7 +630,7 @@ def _(
                 filename=project_path.edbo_filename,
                 check_overwrite=False
             )            
-    
+
     #    EDBOplus().run(
     #        filename=project_path.edbo_filename,  # Previously generated scope.
     #        directory=project_path.project_path,
@@ -797,12 +791,12 @@ def _(
         project_path.update_edbo_csv(df_predictions_editor.value)
         project_path.save_edbo_csv()
         with mo.redirect_stderr():
-            print("experimental results saved :)")
+            print("New Experimental Results SAVED :)")
         #except:
         #    print("sth. went wrong... (FURURE: catch and print error message ;))")
     elif not show_edbo_status:
         with mo.redirect_stderr():
-            print("nothing to save... (?")    
+            print("nothing to save here...")    
 
     return
 
