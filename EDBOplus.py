@@ -19,10 +19,11 @@ def _():
 
 
 @app.cell
-def _(glob):
+def _(glob, os):
     # search projects
-    database_folder_path = "database/"
-    projects = glob.glob(database_folder_path+"*")
+    database_folder_name = "database"
+    database_folder_path = database_folder_name+os.path.sep
+    projects = glob.glob( os.path.join(database_folder_name,"*"))
     projects = [p.replace(database_folder_path,"") for p in projects]
     projects = ["new project"] + projects
     return database_folder_path, projects
@@ -167,9 +168,11 @@ def _(
 ):
     if project_name_dropdown.value["project_dropdown"] == new_project_string: 
         project_path = project_pathing( project_name_form.value["name"], database_folder_path)
+        project = project_information(project_path)
+        project.info["additional_variable"] = "priority"
     else:
         project_path = project_pathing(project_name_dropdown.value["project_dropdown"], database_folder_path)
-    project = project_information(project_path)
+        project = project_information(project_path)
     return project, project_path
 
 
@@ -584,10 +587,10 @@ def _(
 ):
     if button_form.value["btn"]:
         if os.path.exists(project_path.edbo_filepath):
-            print("ex")
+
             # copy current scope to save results
             dest = os.path.join(project_path.project_path,"my_optimization_backup.csv")
-            shutil.copyfile(project_path.edbo_filepath,dest)
+            shutil.move(project_path.edbo_filepath,dest)
 
             EDBOplus().generate_reaction_scope(
                 components=reaction_components,
@@ -596,31 +599,23 @@ def _(
                 check_overwrite=False
             )    
 
-            EDBOplus().run(
-                filename=project_path.edbo_filename,  # Previously generated scope.
-                directory=project_path.project_path,
-                objectives=list(np.atleast_1d(design_objective_df["name"])),  # Objectives to be optimized.
-                objective_mode=list(np.atleast_1d(design_objective_df["goal"])),  # Maximize yield and ee but minimize side_product.
-                batch=1,  # Number of experiments in parallel that we want to perform in this round.
-                columns_features='all', # features to be included in the model.
-                init_sampling_method='cvt'  # initialization method.
-            )        
-
-            print("ex")
             # load backup scope
             backup_scope = pd.read_csv(dest)
-            backup_scope = backup_scope[backup_scope["priority"]==-1]
-            # load new scope
-            new_scope = pd.read_csv(project_path.edbo_filepath)
-            new_scope["priority"] = 0
-
-            # Concatenate scopes, ignore original indexes
-            combined = pd.concat([backup_scope,new_scope], ignore_index=True)
-
-            # Drop duplicates based on reaction_components, keeping the row from backup_scope if present
-            result = combined.drop_duplicates(subset=reaction_components, keep='first').reset_index(drop=True)
-            result["priority"][result["priority"] != -1] = 0
-            result.to_csv(project_path.edbo_filepath, index=False)        
+            if "priority" in backup_scope.keys():
+                backup_scope = backup_scope[backup_scope["priority"]==-1]
+            
+                # load new scope
+                new_scope = pd.read_csv(project_path.edbo_filepath)
+                new_scope["priority"] = 0
+                new_scope[list(np.atleast_1d(design_objective_df["name"]))] = "PENDING"
+    
+                # Concatenate scopes, ignore original indexes
+                combined = pd.concat([backup_scope,new_scope], ignore_index=True)
+    
+                # Drop duplicates based on reaction_components, keeping the row from backup_scope if present
+                result = combined.drop_duplicates(subset=reaction_components, keep='first').reset_index(drop=True)
+                result["priority"][result["priority"] != -1] = 0
+                result.to_csv(project_path.edbo_filepath, index=False)        
 
         else:
             print("new")
@@ -629,7 +624,7 @@ def _(
                 directory=project_path.project_path,
                 filename=project_path.edbo_filename,
                 check_overwrite=False
-            )            
+            )          
 
     #    EDBOplus().run(
     #        filename=project_path.edbo_filename,  # Previously generated scope.
@@ -670,19 +665,20 @@ def _(
     if bayes_button.value:
 
         EDBOplus().run(
-            filename=project_path.edbo_filename,  # Previously generated scope.
-            directory=project_path.project_path,
-            objectives=list(np.atleast_1d(design_objective_df["name"])),  # Objectives to be optimized.
-            objective_mode=list(np.atleast_1d(design_objective_df["goal"])),  # Maximize yield and ee but minimize side_product.
-            batch=3,  # Number of experiments in parallel that we want to perform in this round.
-            columns_features='all', # features to be included in the model.
-            init_sampling_method='cvt'  # initialization method.
+                filename=project_path.edbo_filename,  # Previously generated scope.
+                directory=project_path.project_path,
+                objectives=list(np.atleast_1d(design_objective_df["name"])),  # Objectives to be optimized.
+                objective_mode=list(np.atleast_1d(design_objective_df["goal"])),  # Maximize yield and ee but minimize side_product.
+                batch=3,  # Number of experiments in parallel that we want to perform in this round.
+                columns_features='all', # features to be included in the model.
+                init_sampling_method='cvt'  # initialization method.
         )
     return (reaction_components,)
 
 
 @app.cell
 def _(bayes_button, button_form, os, project_path):
+
     if bayes_button.value or button_form.value["btn"] or os.path.isfile(project_path.edbo_filepath):
         show_edbo_status = True
     else:
@@ -797,7 +793,6 @@ def _(
     elif not show_edbo_status:
         with mo.redirect_stderr():
             print("nothing to save here...")    
-
     return
 
 
