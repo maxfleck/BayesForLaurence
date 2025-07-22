@@ -573,9 +573,9 @@ def _(
     shutil,
 ):
     mo.stop( not button_form.value["btn"], mo.md("DIDN'T (re)build scope") )
-    
-    if os.path.exists(project_path.edbo_filepath):
 
+    if os.path.exists(project_path.edbo_filepath):
+        message = "found and used old optimization/experiments/scope"
         # copy current scope to save results
         dest = os.path.join(project_path.project_path,"my_optimization_backup.csv")
         shutil.move(project_path.edbo_filepath,dest)
@@ -606,12 +606,18 @@ def _(
             result.to_csv(project_path.edbo_filepath, index=False)        
 
     else:
+        message = "NEW NEW NEW"
         EDBOplus().generate_reaction_scope(
             components=reaction_components,
             directory=project_path.project_path,
             filename=project_path.edbo_filename,
             check_overwrite=False
         )          
+        scope = pd.read_csv(project_path.edbo_filepath)
+        scope["priority"] = 0
+        scope[list(np.atleast_1d(design_objective_df["name"]))] = "PENDING"
+        result.to_csv(project_path.edbo_filepath, index=False)    
+    
 
     #    EDBOplus().run(
     #        filename=project_path.edbo_filename,  # Previously generated scope.
@@ -626,7 +632,9 @@ def _(
     mo.md("""
         DID (re)build scope :)
         ---
-        """) 
+        {message}
+        ---
+        """.format(message=message)) 
     return
 
 
