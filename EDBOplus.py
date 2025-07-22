@@ -524,45 +524,34 @@ def _(mo):
 
 @app.cell
 def _(mo, os, project_path):
-    if os.path.isfile(project_path.edbo_filepath):
-        button_form = (
-            mo.md(
-                '''
-            ## Reaction Scope Already Exists
-
-            {btn}
-
-            '''
-            )
-            .batch(
-                btn=mo.ui.run_button(label="Rebuild Scope"),
-            )
-        )
+    if os.path.exists(project_path.edbo_filepath):
+        scope_message = "scope already exists... not necessary to build :)"
     else:
-        button_form = (
-            mo.md(
-                '''
-            ## Build Reaction Scope
+        scope_message = "scope does not exist... BUILD IT!!!"
 
-            First, you need to build the reaction scope:
+    mo.md(
+    '''
+        ## Build Reaction Scope
+    
+        First, you (might) need to build the reaction scope:
+    
+        ### {message}
 
-            {btn}
+    '''.format(message=scope_message)
+    )
+    return
 
-            '''
-            )
-            .batch(
-                btn=mo.ui.run_button(label="Build Scope"),
-            )
-        )
 
-    button_form
-    return (button_form,)
+@app.cell
+def _(mo):
+    scope_button = mo.ui.run_button(label="Build Scope")
+    scope_button
+    return (scope_button,)
 
 
 @app.cell
 def _(
     EDBOplus,
-    button_form,
     design_objective_df,
     mo,
     np,
@@ -570,12 +559,14 @@ def _(
     pd,
     project_path,
     reaction_components,
+    scope_button,
     shutil,
 ):
-    mo.stop( not button_form.value["btn"], mo.md("DIDN'T (re)build scope") )
+    message = ""
+    mo.stop( not scope_button.value, mo.md("No scope build :)") )
 
     if os.path.exists(project_path.edbo_filepath):
-        message = "found and used old optimization/experiments/scope"
+        message = "tried to build scope... sth went wrong"
         # copy current scope to save results
         dest = os.path.join(project_path.project_path,"my_optimization_backup.csv")
         shutil.move(project_path.edbo_filepath,dest)
@@ -589,9 +580,9 @@ def _(
 
         # load backup scope
         backup_scope = pd.read_csv(dest)
-        if "priority" in backup_scope.keys():
-            backup_scope = backup_scope[backup_scope["priority"]==-1]
-
+        backup_scope = backup_scope[backup_scope["priority"]==-1]
+        if np.prod(backup_scope.shape) > 0:
+            message = "BUILD SCOPE :) + found and used old optimization/experiments/scope"
             # load new scope
             new_scope = pd.read_csv(project_path.edbo_filepath)
             new_scope["priority"] = 0
@@ -604,9 +595,15 @@ def _(
             result = combined.drop_duplicates(subset=reaction_components, keep='first').reset_index(drop=True)
             result["priority"][result["priority"] != -1] = 0
             result.to_csv(project_path.edbo_filepath, index=False)        
+        else:
+            message = "BUILD SCOPE :) + found old optimization/experiments/scope without experimental results"
+            scope = pd.read_csv(project_path.edbo_filepath)
+            scope["priority"] = 0
+            scope[list(np.atleast_1d(design_objective_df["name"]))] = ""#"PENDING"
+            scope.to_csv(project_path.edbo_filepath, index=False)      
 
     else:
-        message = "NEW NEW NEW"
+        message = "BUILD SCOPE NEW NEW NEW :)"
         EDBOplus().generate_reaction_scope(
             components=reaction_components,
             directory=project_path.project_path,
@@ -615,8 +612,8 @@ def _(
         )          
         scope = pd.read_csv(project_path.edbo_filepath)
         scope["priority"] = 0
-        scope[list(np.atleast_1d(design_objective_df["name"]))] = "PENDING"
-        result.to_csv(project_path.edbo_filepath, index=False)    
+        scope[list(np.atleast_1d(design_objective_df["name"]))] = ""#"PENDING"
+        scope.to_csv(project_path.edbo_filepath, index=False)    
     
 
     #    EDBOplus().run(
@@ -628,13 +625,11 @@ def _(
     #        columns_features='all', # features to be included in the model.
     #        init_sampling_method='cvt'  # initialization method.
     #    )
-
     mo.md("""
-        DID (re)build scope :)
-        ---
-        {message}
-        ---
-        """.format(message=message)) 
+    ---
+    {message}
+    ---
+    """.format(message=message)) 
     return
 
 
@@ -682,6 +677,7 @@ def _(
 def _(mo):
     mo.md(
         r"""
+
     ---
 
     ## EDBO+ Results
