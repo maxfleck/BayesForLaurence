@@ -19,13 +19,26 @@ def _():
 
 
 @app.cell
+def _():
+    button_dict = {}
+    button_dict["rn_btn0"] = 0
+    button_dict["rn_btn1"] = 0
+    return
+
+
+@app.cell
 def _(glob, os):
     # search projects
     database_folder_name = "database"
     database_folder_path = database_folder_name+os.path.sep
-    projects = glob.glob( os.path.join(database_folder_name,"*"))
-    projects = [p.replace(database_folder_path,"") for p in projects]
-    projects = ["new project"] + projects
+
+    def get_projects(database_folder_name, database_folder_path):
+        projects = glob.glob( os.path.join(database_folder_name,"*"))
+        projects = [p.replace(database_folder_path,"") for p in projects]
+        projects = ["new project"] + projects    
+        return projects
+
+    projects= get_projects(database_folder_name,database_folder_path)
     return database_folder_path, projects
 
 
@@ -52,6 +65,14 @@ def _(mo, projects):
 
 @app.cell
 def _(os, pd, toml):
+    """
+    - not sure if two classes are necessary.
+    - pathing might be replacable with a decorator class
+    - ...details not importatnt. Its a test. It needs to work.
+
+    """
+
+
     class project_pathing():
 
         def __init__(self,project_name, database_folder_path,update_key="yield"):
@@ -141,18 +162,32 @@ def _(mo, new_project_string, project_name_dropdown):
     if project_name_dropdown.value["project_dropdown"] == new_project_string:
         project_name_form = mo.md(
         """
-        # Name New Project
 
-        The variables marked with (*) here can not be changed in the future.
+        ## Project Name: {name}
 
-        ### Project Name*: {name}
+        ---
+
+        ## Project Definition
+
+        ### Describe the Project: {project_description}
+
+        ### Design Components: {design_variable}
+
+        ### Design Objectives: {design_objective}
+
+        ### Additional Variables {additional_variable}
 
         """   
         ).batch(
             name=mo.ui.text(),
-               )#.form()
+            project_description=mo.ui.text_area(),
+            design_variable=mo.ui.text(),
+            design_objective=mo.ui.text(),
+            additional_variable=mo.ui.text(value="priority"),
+           ).form(show_clear_button=True, bordered=True)
+
     else:
-        project_name_form = """ """
+        project_name_form = mo.md("""## {name} """.format(name=project_name_dropdown.value["project_dropdown"]))
     project_name_form
     return (project_name_form,)
 
@@ -160,30 +195,31 @@ def _(mo, new_project_string, project_name_dropdown):
 @app.cell
 def _(
     database_folder_path,
+    mo,
     new_project_string,
     project_information,
     project_name_dropdown,
     project_name_form,
     project_pathing,
 ):
-    if project_name_dropdown.value["project_dropdown"] == new_project_string: 
+    if project_name_dropdown.value["project_dropdown"] == new_project_string and project_name_form.value: 
         project_path = project_pathing( project_name_form.value["name"], database_folder_path)
         project = project_information(project_path)
-        project.info["additional_variable"] = "priority"
+        project.update_info(project_name_form.value)
+        project_path.make_root()
+        project_path.save_toml("project_info.toml",project.info)
     else:
         project_path = project_pathing(project_name_dropdown.value["project_dropdown"], database_folder_path)
         project = project_information(project_path)
-    return project, project_path
 
 
-@app.cell
-def _(mo, project):
-    project_form = mo.md(
-    """
+    project_overview = mo.md("""
+
+    # Your project: {name}
+
     ---
 
-
-    # Project Definition
+    ## Project Definition
 
     ### Describe the Project: {project_description}
 
@@ -193,40 +229,16 @@ def _(mo, project):
 
     ### Additional Variables {additional_variable}
 
-    """   
-    ).batch(
-        name=mo.ui.text(),
-        project_description=mo.ui.text_area(value=project.info["project_description"]),
-        design_variable=mo.ui.text(value=project.info["design_variable"]),
-        design_objective=mo.ui.text(value=project.info["design_objective"]),
-        additional_variable=mo.ui.text(value=project.info["additional_variable"]),
-           )#.form()
+    """.format(
+        name=project.info["name"],
+        project_description=project.info["project_description"],
+        design_variable=project.info["design_variable"],
+        design_objective=project.info["design_objective"],
+        additional_variable=project.info["additional_variable"],
+    )    )
 
-    project_form
-    return (project_form,)
-
-
-@app.cell
-def _(mo, project, project_form):
-    project.update_info(project_form.value)
-
-    build_button = mo.ui.run_button(label="Save/Update Project")
-    build_button
-    return (build_button,)
-
-
-@app.cell
-def _(build_button, mo, project, project_path):
-    if build_button.value:
-        """
-        TO DO:
-        - delete specs if vars are changed!!!
-        """
-        project_path.make_root()
-        project_path.save_toml("project_info.toml",project.info)
-        with mo.redirect_stdout():
-            print("SAVED")
-    return
+    project_overview
+    return (project_path,)
 
 
 @app.cell
@@ -249,7 +261,9 @@ def _(mo):
 
 
 @app.cell
-def _(pd, project_form):
+def _(pd, project_path):
+    project_form = project_path.load_toml("project_info.toml")
+
     variable_dict = {}
     variable_table = {}
     variable_list = []
@@ -257,7 +271,7 @@ def _(pd, project_form):
     variable_types = ["design_variable", "design_objective", "additional_variable"]
     save_flag = True
     for x in variable_types:
-        ys = project_form.value[x].split(",")
+        ys = project_form[x].split(",")
         variable_dict[x] = ys
         for y in ys:
             if y not in variable_table.keys():
@@ -406,18 +420,6 @@ def _(design_variable_df, grid):
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-    ---
-
-    When youre happy with your design variables, save them:
-    """
-    )
-    return
-
-
-@app.cell
-def _(mo):
     #project.update_info(project_form.value)
 
     design_variable_button = mo.ui.run_button(label="Save/Update Design Variables")
@@ -427,11 +429,11 @@ def _(mo):
 
 @app.cell
 def _(design_variable_button, design_variable_df, mo, project_path):
-    if design_variable_button.value:
-        design_dict = design_variable_df.set_index("name").to_dict(orient='index')
-        project_path.save_toml("design_dict.toml",design_dict)
-        with mo.redirect_stdout():
-            print("Design Variables SAVED :)")     
+    mo.stop( not design_variable_button.value, mo.md("To modify the searchspace update design variables") )
+    design_dict = design_variable_df.set_index("name").to_dict(orient='index')
+    project_path.save_toml("design_dict.toml",design_dict)
+    mo.md("Design variables updated :)")
+
     return
 
 
@@ -483,24 +485,6 @@ def _(mo, pd, project_path, variable_df):
 
 
 @app.cell
-def _(design_objective_df, design_objective_elements02):
-    design_objective_df["goal"] = design_objective_elements02.value
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        r"""
-    ---
-
-    When youre happy with your design objectives, save them:
-    """
-    )
-    return
-
-
-@app.cell
 def _(mo):
     design_objective_button = mo.ui.run_button(label="Save/Update Design Objectives")
     design_objective_button
@@ -508,15 +492,19 @@ def _(mo):
 
 
 @app.cell
-def _(design_objective_button, design_objective_df, mo, project_path):
-    if design_objective_button.value:
-        objective_dict = design_objective_df.set_index("name").to_dict(orient='index')
-        project_path.save_toml("objective_dict.toml",objective_dict)
-        with mo.redirect_stdout():
-            print("Design Objectives SAVED :)")
-    else:
-        # objective_dict = project_path.load_toml("objective_dict.toml")
-        objective_dict = design_objective_df.set_index("name").to_dict(orient='index')
+def _(
+    design_objective_button,
+    design_objective_df,
+    design_objective_elements02,
+    mo,
+    project_path,
+):
+    objective_dict = design_objective_df.set_index("name").to_dict(orient='index')
+    mo.stop( not design_objective_button.value, mo.md("To modify your search update design objectives") )
+    design_objective_df["goal"] = design_objective_elements02.value
+    objective_dict = design_objective_df.set_index("name").to_dict(orient='index')
+    project_path.save_toml("objective_dict.toml",objective_dict)
+    mo.md("Design objectives updated :)")
     return
 
 
@@ -541,8 +529,6 @@ def _(mo, os, project_path):
             mo.md(
                 '''
             ## Reaction Scope Already Exists
-
-            You can rebuild it (not recommended, data will be erased):
 
             {btn}
 
@@ -578,6 +564,7 @@ def _(
     EDBOplus,
     button_form,
     design_objective_df,
+    mo,
     np,
     os,
     pd,
@@ -585,46 +572,46 @@ def _(
     reaction_components,
     shutil,
 ):
-    if button_form.value["btn"]:
-        if os.path.exists(project_path.edbo_filepath):
-
-            # copy current scope to save results
-            dest = os.path.join(project_path.project_path,"my_optimization_backup.csv")
-            shutil.move(project_path.edbo_filepath,dest)
-
-            EDBOplus().generate_reaction_scope(
-                components=reaction_components,
-                directory=project_path.project_path,
-                filename=project_path.edbo_filename,
-                check_overwrite=False
-            )    
-
-            # load backup scope
-            backup_scope = pd.read_csv(dest)
-            if "priority" in backup_scope.keys():
-                backup_scope = backup_scope[backup_scope["priority"]==-1]
-            
-                # load new scope
-                new_scope = pd.read_csv(project_path.edbo_filepath)
-                new_scope["priority"] = 0
-                new_scope[list(np.atleast_1d(design_objective_df["name"]))] = "PENDING"
+    mo.stop( not button_form.value["btn"], mo.md("DIDN'T (re)build scope") )
     
-                # Concatenate scopes, ignore original indexes
-                combined = pd.concat([backup_scope,new_scope], ignore_index=True)
-    
-                # Drop duplicates based on reaction_components, keeping the row from backup_scope if present
-                result = combined.drop_duplicates(subset=reaction_components, keep='first').reset_index(drop=True)
-                result["priority"][result["priority"] != -1] = 0
-                result.to_csv(project_path.edbo_filepath, index=False)        
+    if os.path.exists(project_path.edbo_filepath):
 
-        else:
-            print("new")
-            EDBOplus().generate_reaction_scope(
-                components=reaction_components,
-                directory=project_path.project_path,
-                filename=project_path.edbo_filename,
-                check_overwrite=False
-            )          
+        # copy current scope to save results
+        dest = os.path.join(project_path.project_path,"my_optimization_backup.csv")
+        shutil.move(project_path.edbo_filepath,dest)
+
+        EDBOplus().generate_reaction_scope(
+            components=reaction_components,
+            directory=project_path.project_path,
+            filename=project_path.edbo_filename,
+            check_overwrite=False
+        )    
+
+        # load backup scope
+        backup_scope = pd.read_csv(dest)
+        if "priority" in backup_scope.keys():
+            backup_scope = backup_scope[backup_scope["priority"]==-1]
+
+            # load new scope
+            new_scope = pd.read_csv(project_path.edbo_filepath)
+            new_scope["priority"] = 0
+            new_scope[list(np.atleast_1d(design_objective_df["name"]))] = "PENDING"
+
+            # Concatenate scopes, ignore original indexes
+            combined = pd.concat([backup_scope,new_scope], ignore_index=True)
+
+            # Drop duplicates based on reaction_components, keeping the row from backup_scope if present
+            result = combined.drop_duplicates(subset=reaction_components, keep='first').reset_index(drop=True)
+            result["priority"][result["priority"] != -1] = 0
+            result.to_csv(project_path.edbo_filepath, index=False)        
+
+    else:
+        EDBOplus().generate_reaction_scope(
+            components=reaction_components,
+            directory=project_path.project_path,
+            filename=project_path.edbo_filename,
+            check_overwrite=False
+        )          
 
     #    EDBOplus().run(
     #        filename=project_path.edbo_filename,  # Previously generated scope.
@@ -636,12 +623,10 @@ def _(
     #        init_sampling_method='cvt'  # initialization method.
     #    )
 
-    return
-
-
-@app.cell
-def _(project_path):
-    project_path.edbo_filepath
+    mo.md("""
+        DID (re)build scope :)
+        ---
+        """) 
     return
 
 
@@ -658,32 +643,31 @@ def _(
     bayes_button,
     design_objective_df,
     design_variable_df,
+    mo,
     np,
     project_path,
 ):
     reaction_components = design_variable_df[["name","grid"]].set_index("name").to_dict()["grid"]
-    if bayes_button.value:
 
-        EDBOplus().run(
-                filename=project_path.edbo_filename,  # Previously generated scope.
-                directory=project_path.project_path,
-                objectives=list(np.atleast_1d(design_objective_df["name"])),  # Objectives to be optimized.
-                objective_mode=list(np.atleast_1d(design_objective_df["goal"])),  # Maximize yield and ee but minimize side_product.
-                batch=3,  # Number of experiments in parallel that we want to perform in this round.
-                columns_features='all', # features to be included in the model.
-                init_sampling_method='cvt'  # initialization method.
-        )
-    return (reaction_components,)
+    mo.stop( not bayes_button.value, mo.md("press Run EDBO+ button to run EDBO+") )
 
+    EDBOplus().run(
+            filename=project_path.edbo_filename,  # Previously generated scope.
+            directory=project_path.project_path,
+            objectives=list(np.atleast_1d(design_objective_df["name"])),  # Objectives to be optimized.
+            objective_mode=list(np.atleast_1d(design_objective_df["goal"])),  # Maximize yield and ee but minimize side_product.
+            batch=3,  # Number of experiments in parallel that we want to perform in this round.
+            columns_features='all', # features to be included in the model.
+            init_sampling_method='cvt'  # initialization method.
+    )
 
-@app.cell
-def _(bayes_button, button_form, os, project_path):
+    project_path.load_edbo_csv() # self.edbo_df
+    df_predictions = project_path.edbo_df[project_path.edbo_df["priority"]!=0]
+    df_pred_show = df_predictions.style.background_gradient(subset=['priority'], cmap='plasma')
 
-    if bayes_button.value or button_form.value["btn"] or os.path.isfile(project_path.edbo_filepath):
-        show_edbo_status = True
-    else:
-        show_edbo_status = False
-    return (show_edbo_status,)
+    df_pred_show
+
+    return df_predictions, reaction_components
 
 
 @app.cell
@@ -696,18 +680,6 @@ def _(mo):
     """
     )
     return
-
-
-@app.cell
-def _(mo, project_path, show_edbo_status):
-    if show_edbo_status:
-        project_path.load_edbo_csv() # self.edbo_df
-        df_predictions = project_path.edbo_df[project_path.edbo_df["priority"]!=0]
-        df_pred_show = df_predictions.style.background_gradient(subset=['priority'], cmap='plasma')
-    else:
-        df_pred_show = mo.md("")    
-    df_pred_show
-    return (df_predictions,)
 
 
 @app.cell
@@ -729,11 +701,9 @@ def _(mo):
 
 
 @app.cell
-def _(df_predictions, mo, show_edbo_status):
-    if show_edbo_status:
-        df_predictions_editor = mo.ui.data_editor(data=df_predictions, label="Edit Data")
-    else:
-        df_predictions_editor = mo.md("")
+def _(bayes_button, df_predictions, mo):
+    mo.stop( not bayes_button.value, mo.md("After running EDBO+, new experiments can be added here :)") )
+    df_predictions_editor = mo.ui.data_editor(data=df_predictions, label="Edit Data")
     df_predictions_editor
     return (df_predictions_editor,)
 
@@ -751,14 +721,15 @@ def _(mo):
 
 
 @app.cell
-def _(df_predictions_editor, mo, project_path, show_edbo_status):
-    if show_edbo_status:
-        project_path.update_edbo_csv(df_predictions_editor.value)
-        df_edbo_show = project_path.edbo_df.reset_index()
-    else:
-        df_edbo_show = mo.md("")
+def _(bayes_button, df_predictions_editor, mo, project_path):
+    disable_save = True
+    mo.stop( not bayes_button.value, mo.md("After running EDBO+, added experiments are shown here :)") )
+    disable_save = disable_save
+    project_path.update_edbo_csv(df_predictions_editor.value)
+    df_edbo_show = project_path.edbo_df.reset_index()
+
     df_edbo_show
-    return
+    return (disable_save,)
 
 
 @app.cell
@@ -768,31 +739,18 @@ def _(mo):
 
 
 @app.cell
-def _(mo):
-    save_experiment_button = mo.ui.run_button(label="Save/Update Experiments")
+def _(disable_save, mo):
+    save_experiment_button = mo.ui.run_button(label="Save/Update Experiments",disabled=disable_save)
     save_experiment_button
-    return (save_experiment_button,)
+    return
 
 
 @app.cell
-def _(
-    df_predictions_editor,
-    mo,
-    project_path,
-    save_experiment_button,
-    show_edbo_status,
-):
-    if save_experiment_button.value and show_edbo_status:
-        #try:
-        project_path.update_edbo_csv(df_predictions_editor.value)
-        project_path.save_edbo_csv()
-        with mo.redirect_stderr():
-            print("New Experimental Results SAVED :)")
-        #except:
-        #    print("sth. went wrong... (FURURE: catch and print error message ;))")
-    elif not show_edbo_status:
-        with mo.redirect_stderr():
-            print("nothing to save here...")    
+def _(bayes_button, df_predictions_editor, mo, project_path):
+    mo.stop( not bayes_button.value, mo.md("Run EDBO+ to be ale to save ur new experiments :)") )
+    project_path.update_edbo_csv(df_predictions_editor.value)
+    project_path.save_edbo_csv()
+    mo.md("Results saved :)")
     return
 
 
